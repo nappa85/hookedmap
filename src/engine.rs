@@ -3,6 +3,8 @@ use rocketmap_entities::{Gym, GymDetails, Pokemon, Pokestop, Quest, Raid, Reques
 
 use mysql_async::{params, prelude::Queryable};
 
+use chrono::Utc;
+
 use log::error;
 
 use crate::db::get_conn;
@@ -10,9 +12,16 @@ use crate::db::get_conn;
 async fn update_gym(gym: &Gym) -> Result<(), ()> {
     let mut conn = get_conn().await?;
     conn.exec_drop(
-        "INSERT INTO gym (id, updated, first_seen_timestamp, lat, lon, name, url, last_modified_timestamp, enabled, team_id, guarding_pokemon_id, availble_slots, raid_end_timestamp, ex_raid_eligible, sponsor_id, ar_scan_eligible)
-        VALUES (:id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), :lat, :lon, :name, :url, :timestamp, :enabled, :team_id, :guard_id, :slots, :raid_end, :ex, :sponsor, :ar)
-        ON DUPLICATE KEY UPDATE updated = UNIX_TIMESTAMP(), lat = :lat, lon = :lon, name = :name, url = :url, last_modified_timestamp = :timestamp, enabled = :enabled, team_id = :team_id, guarding_pokemon_id = :guard_id, availble_slots = :slots, raid_end_timestamp = :raid_end, ex_raid_eligible = :ex, sponsor_id = :sponsor, ar_scan_eligible = :ar;",
+        format!(
+            "INSERT INTO gym (id, updated, first_seen_timestamp, lat, lon, name, url, last_modified_timestamp, enabled, team_id, guarding_pokemon_id, availble_slots, raid_end_timestamp, ex_raid_eligible, sponsor_id, ar_scan_eligible)
+            VALUES (:id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), :lat, :lon, :name, :url, :timestamp, :enabled, :team_id, :guard_id, :slots, :raid_end, :ex, :sponsor, :ar)
+            ON DUPLICATE KEY UPDATE updated = UNIX_TIMESTAMP(), lat = :lat, lon = :lon, name = :name, url = :url,{}{} team_id = :team_id,{} availble_slots = :slots,{}{} sponsor_id = :sponsor, ar_scan_eligible = :ar;",
+            gym.last_modified.map(|_| " last_modified_timestamp = :timestamp,").unwrap_or_default(),
+            gym.enabled.map(|_| " enabled = :enabled,").unwrap_or_default(),
+            gym.guard_pokemon_id.map(|_| " guarding_pokemon_id = :guard_id,").unwrap_or_default(),
+            gym.raid_active_until.map(|_| " raid_end_timestamp = :raid_end,").unwrap_or_default(),
+            gym.ex_raid_eligible.map(|_| " ex_raid_eligible = :ex,").unwrap_or_default(),
+        ),
         params! {
             "id" => gym.gym_id.as_str(),
             "lat" => gym.latitude,
@@ -61,15 +70,21 @@ async fn update_gym_details(gym: &GymDetails) -> Result<(), ()> {
 async fn update_pokestop(pokestop: &Pokestop) -> Result<(), ()> {
     let mut conn = get_conn().await?;
     conn.exec_drop(
-        "INSERT INTO pokestop (id, first_seen_timestamp, lat, lon, name, url, enabled, last_modified_timestamp, lure_expire_timestamp, pokestop_display, incident_expire_timestamp, updated, lure_id, grunt_type, ar_scan_eligible)
-        VALUES (:id, UNIX_TIMESTAMP(), :lat, :lon, :name, :url, :enabled, :last, :lure_exp, :display, :incident_exp, :updated, :lure_id, :grunt_type, :ar)
-        ON DUPLICATE KEY UPDATE lat = :lat, lon = :lon, name = :name, url = :url, enabled = :enabled, last_modified_timestamp = :last, lure_expire_timestamp = :lure_exp, pokestop_display = :display, incident_expire_timestamp = :incident_exp, updated = :updated, lure_id = :lure_id, grunt_type = :grunt_type, ar_scan_eligible = :ar;",
+        format!(
+            "INSERT INTO pokestop (id, first_seen_timestamp, lat, lon, name, url, enabled, last_modified_timestamp, lure_expire_timestamp, pokestop_display, incident_expire_timestamp, updated, lure_id, grunt_type, ar_scan_eligible)
+            VALUES (:id, UNIX_TIMESTAMP(), :lat, :lon, :name, :url, :enabled, :last, :lure_exp, :display, :incident_exp, :updated, :lure_id, :grunt_type, :ar)
+            ON DUPLICATE KEY UPDATE lat = :lat, lon = :lon,{}{}{} last_modified_timestamp = :last, lure_expire_timestamp = :lure_exp,{} incident_expire_timestamp = :incident_exp, updated = :updated, lure_id = :lure_id, grunt_type = :grunt_type, ar_scan_eligible = :ar;",
+            pokestop.name.as_ref().map(|_| " name = :name,").unwrap_or_default(),
+            pokestop.url.as_ref().map(|_| " url = :url,").unwrap_or_default(),
+            pokestop.enabled.map(|_| " enabled = :enabled,").unwrap_or_default(),
+            pokestop.pokestop_display.map(|_| " pokestop_display = :display,").unwrap_or_default(),
+        ),
         params! {
             "id" => pokestop.pokestop_id.as_str(),
             "lat" => pokestop.latitude,
             "lon" => pokestop.longitude,
-            "name" => pokestop.name.as_str(),
-            "url" => pokestop.url.as_str(),
+            "name" => pokestop.name.as_deref(),
+            "url" => pokestop.url.as_deref(),
             "enabled" => pokestop.enabled,
             "last" => pokestop.last_modified,
             "lure_exp" => pokestop.lure_expiration,
@@ -88,9 +103,13 @@ async fn update_pokestop(pokestop: &Pokestop) -> Result<(), ()> {
 async fn update_pokemon(pokemon: &Pokemon) -> Result<(), ()> {
     let mut conn = get_conn().await?;
     conn.exec_drop(
-        "INSERT INTO pokemon (id, pokemon_id, pokestop_id, lat, lon, expire_timestamp, expire_timestamp_verified, updated, first_seen_timestamp, gender, cp, form, costume, atk_iv, def_iv, sta_iv, move_1, move_2, weight, size, capture_1, capture_2, capture_3, weather, level, cell_id, username, shiny, display_pokemon_id, is_event, pvp_rankings_great_league, pvp_rankings_ultra_league)
-        VALUES (:id, :pokemon, :pokestop, :lat, :lon, :exp, :exp_ver, :update, :first_seen, :gender, :cp, :form, :costume, :atk_iv, :def_iv, :sta_iv, :move1, :move2, :weight, :size, :capture1, :capture2, :capture3, :weather, :level, :cell, :username, :shiny, :display, :event, :great, :ultra)
-        ON DUPLICATE KEY UPDATE pokemon_id = :pokemon, pokestop_id = :pokestop, lat = :lat, lon = :lon, expire_timestamp = :exp, expire_timestamp_verified = :exp_ver, updated = :update, first_seen_timestamp = :first_seen, gender = :gender, cp = :cp, form = :form, costume = :costume, atk_iv = :atk_iv, def_iv = :def_iv, sta_iv = :sta_iv, move_1 = :move1, move_2 = :move2, weight = :weight, size = :size, capture_1 = :capture1, capture_2 = :capture2, capture_3 = :capture3, weather = :weather, level = :level, cell_id = :cell, username = :username, shiny = :shiny, display_pokemon_id = :display, is_event = :event, pvp_rankings_great_league = :great, pvp_rankings_ultra_league = :ultra;",
+        format!(
+            "INSERT INTO pokemon (id, pokemon_id, pokestop_id, lat, lon, expire_timestamp, expire_timestamp_verified, updated, first_seen_timestamp, gender, cp, form, costume, atk_iv, def_iv, sta_iv, move_1, move_2, weight, size, capture_1, capture_2, capture_3, weather, level, cell_id, username, shiny, display_pokemon_id, is_event, pvp_rankings_great_league, pvp_rankings_ultra_league)
+            VALUES (:id, :pokemon, :pokestop, :lat, :lon, :exp, :exp_ver, :update, :first_seen, :gender, :cp, :form, :costume, :atk_iv, :def_iv, :sta_iv, :move1, :move2, :weight, :size, :capture1, :capture2, :capture3, :weather, :level, :cell, :username, :shiny, :display, :event, :great, :ultra)
+            ON DUPLICATE KEY UPDATE pokemon_id = :pokemon, pokestop_id = :pokestop, lat = :lat, lon = :lon, expire_timestamp = :exp, expire_timestamp_verified = :exp_ver,{}{} gender = :gender, cp = :cp, form = :form, costume = :costume, atk_iv = :atk_iv, def_iv = :def_iv, sta_iv = :sta_iv, move_1 = :move1, move_2 = :move2, weight = :weight, size = :size, capture_1 = :capture1, capture_2 = :capture2, capture_3 = :capture3, weather = :weather, level = :level, cell_id = :cell, username = :username, shiny = :shiny, display_pokemon_id = :display, is_event = :event, pvp_rankings_great_league = :great, pvp_rankings_ultra_league = :ultra;",
+            pokemon.last_modified_time.map(|_| " updated = :update,").unwrap_or_default(),
+            pokemon.first_seen.map(|_| " first_seen_timestamp = :first_seen,").unwrap_or_default(),
+        ),
         params! {
             "id" => pokemon.encounter_id.as_str(),
             "pokemon" => pokemon.pokemon_id,
@@ -101,7 +120,7 @@ async fn update_pokemon(pokemon: &Pokemon) -> Result<(), ()> {
             "exp" => pokemon.disappear_time,
             "exp_ver" => pokemon.disappear_time_verified,
             "update" => pokemon.last_modified_time,
-            "first_seen" => pokemon.first_seen,
+            "first_seen" => pokemon.first_seen.unwrap_or_else(|| Utc::now().timestamp()),
             "gender" => pokemon.gender.get_id(),
             "cp" => pokemon.cp,
             "form" => pokemon.form,
@@ -122,7 +141,7 @@ async fn update_pokemon(pokemon: &Pokemon) -> Result<(), ()> {
             "username" => pokemon.username.as_ref(),
             "shiny" => pokemon.shiny,
             "display" => pokemon.display_pokemon_id,
-            "event" => pokemon.is_event,
+            "event" => pokemon.is_event.unwrap_or_default(),
             "great" => pokemon.pvp_rankings_great_league.as_ref().and_then(|pvp| serde_json::to_string(pvp).ok()),
             "ultra" => pokemon.pvp_rankings_ultra_league.as_ref().and_then(|pvp| serde_json::to_string(pvp).ok()),
         })
@@ -134,9 +153,9 @@ async fn update_pokemon(pokemon: &Pokemon) -> Result<(), ()> {
 async fn update_quest(quest: &Quest) -> Result<(), ()> {
     let mut conn = get_conn().await?;
     conn.exec_drop(
-        "INSERT INTO pokestop (id, first_seen_timestamp, lat, lon, name, url, quest_type, quest_target, quest_template, quest_rewards, updated, quest_conditions, ar_scan_eligible)
-        VALUES (:id, UNIX_TIMESTAMP(), :lat, :lon, :name, :url, :type, :target, :template, :rewards, :updated, :conditions, :ar)
-        ON DUPLICATE KEY UPDATE lat = :lat, lon = :lon, name = :name, url = :url, quest_type = :type, quest_target = :target, quest_template = :template, quest_rewards = :rewards, updated = :updated, quest_conditions = :conditions, ar_scan_eligible = :ar;",
+        "INSERT INTO pokestop (id, first_seen_timestamp, lat, lon, name, url, quest_type, quest_target, quest_template, quest_rewards, updated, quest_conditions, quest_timestamp, ar_scan_eligible)
+        VALUES (:id, UNIX_TIMESTAMP(), :lat, :lon, :name, :url, :type, :target, :template, :rewards, :updated, :conditions, UNIX_TIMESTAMP(), :ar)
+        ON DUPLICATE KEY UPDATE lat = :lat, lon = :lon, name = :name, url = :url, quest_type = :type, quest_target = :target, quest_template = :template, quest_rewards = :rewards, updated = :updated, quest_conditions = :conditions, quest_timestamp = UNIX_TIMESTAMP(), ar_scan_eligible = :ar;",
         params! {
             "id" => quest.pokestop_id.as_str(),
             "lat" => quest.latitude,
@@ -180,7 +199,7 @@ async fn update_raid(raid: &Raid) -> Result<(), ()> {
             "ex" => raid.ex_raid_eligible,
             "form" => raid.form,
             "is_ex" => raid.is_exclusive,
-            "gender" => raid.gender.get_id(),
+            "gender" => raid.gender.as_ref().map(|g| g.get_id()),
             "sponsor" => raid.sponsor_od,
             "evo" => raid.evolution,
             "ar" => raid.ar_scan_eligible,
