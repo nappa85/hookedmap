@@ -13,9 +13,9 @@ async fn update_gym(gym: &Gym) -> Result<(), ()> {
     let mut conn = get_conn().await?;
     conn.exec_drop(
         format!(
-            "INSERT INTO gym (id, updated, first_seen_timestamp, lat, lon, name, url, last_modified_timestamp, enabled, team_id, guarding_pokemon_id, availble_slots, raid_end_timestamp, ex_raid_eligible, sponsor_id, ar_scan_eligible)
-            VALUES (:id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), :lat, :lon, :name, :url, :timestamp, :enabled, :team_id, :guard_id, :slots, :raid_end, :ex, :sponsor, :ar)
-            ON DUPLICATE KEY UPDATE updated = UNIX_TIMESTAMP(), lat = :lat, lon = :lon,{}{}{}{} team_id = :team_id,{} availble_slots = :slots,{}{} sponsor_id = :sponsor, ar_scan_eligible = :ar;",
+            "INSERT INTO gym (id, updated, first_seen_timestamp, lat, lon, name, url, last_modified_timestamp, enabled, team_id, guarding_pokemon_id, availble_slots, raid_end_timestamp, ex_raid_eligible, in_battle, sponsor_id, ar_scan_eligible)
+            VALUES (:id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), :lat, :lon, :name, :url, :timestamp, :enabled, :team_id, :guard_id, :slots, :raid_end, :ex, :in_battle, :sponsor, :ar)
+            ON DUPLICATE KEY UPDATE updated = UNIX_TIMESTAMP(), lat = :lat, lon = :lon,{}{}{}{} team_id = :team_id,{} availble_slots = :slots,{}{}, in_battle = :in_battle sponsor_id = :sponsor, ar_scan_eligible = :ar;",
             (!gym.gym_name.eq_ignore_ascii_case("unknown")).then(|| " name = :name,").unwrap_or_default(),
             (!gym.url.is_empty()).then(|| " url = :url,").unwrap_or_default(),
             gym.last_modified.map(|_| " last_modified_timestamp = :timestamp,").unwrap_or_default(),
@@ -37,6 +37,7 @@ async fn update_gym(gym: &Gym) -> Result<(), ()> {
             "slots" => gym.slots_available,
             "raid_end" => gym.raid_active_until,
             "ex" => gym.ex_raid_eligible,
+            "in_battle" => gym.in_battle,
             "sponsor" => gym.sponsor_od,
             "ar" => gym.ar_scan_eligible,
         })
