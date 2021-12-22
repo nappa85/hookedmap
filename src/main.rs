@@ -14,7 +14,7 @@ use tokio::spawn;
 
 use serde_json::value::Value;
 
-use log::{info, error};
+use tracing::{info, error};
 
 mod db;
 mod config;
@@ -62,7 +62,7 @@ async fn service(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
 /// Launch service according to config
 #[tokio::main]
 async fn main() -> Result<(), ()> {
-    env_logger::init();
+    tracing_subscriber::fmt::init();
 
     //retrieve address and port, defaulting if not configured
     let addr = format!(

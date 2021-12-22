@@ -2,7 +2,7 @@ use mysql_async::{Conn, Pool};
 
 use once_cell::sync::Lazy;
 
-use log::error;
+use tracing::error;
 
 use crate::config::CONFIG;
 
