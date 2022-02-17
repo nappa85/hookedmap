@@ -1,5 +1,5 @@
 
-use rocketmap_entities::{Gym, GymDetails, Pokemon, Pokestop, Quest, Raid, Request};
+use rocketmap_entities::{Gym, GymDetails, Pokemon, Pokestop, Quest, Raid};
 
 use mysql_async::{params, prelude::Queryable};
 
@@ -8,6 +8,21 @@ use chrono::Utc;
 use tracing::error;
 
 use crate::db::get_conn;
+
+type Request = rocketmap_entities::Request<FakeCache, FakeCache>;
+
+#[derive(Debug)]
+pub struct FakeCache;
+
+impl rocketmap_entities::gamemaster::Cache for FakeCache {
+    type Id = u16;
+    fn get(_: Self::Id) -> Option<String> {
+        None
+    }
+    fn reverse(_: &str) -> Option<Self::Id> {
+        None
+    }
+}
 
 async fn update_gym(gym: &Gym) -> Result<(), ()> {
     let mut conn = get_conn().await?;
@@ -38,7 +53,7 @@ async fn update_gym(gym: &Gym) -> Result<(), ()> {
             "raid_end" => gym.raid_active_until,
             "ex" => gym.ex_raid_eligible,
             "in_battle" => gym.in_battle,
-            "sponsor" => gym.sponsor_od,
+            "sponsor" => gym.sponsor_id,
             "ar" => gym.ar_scan_eligible,
         })
         .await
@@ -66,7 +81,7 @@ async fn update_gym_details(gym: &GymDetails) -> Result<(), ()> {
             "slots" => gym.slots_available,
             "ex" => gym.ex_raid_eligible,
             "in_battle" => gym.in_battle,
-            "sponsor" => gym.sponsor_od,
+            "sponsor" => gym.sponsor_id,
             "ar" => gym.ar_scan_eligible,
         })
         .await
@@ -215,7 +230,7 @@ async fn update_raid(raid: &Raid) -> Result<(), ()> {
             "form" => raid.form,
             "is_ex" => raid.is_exclusive,
             "gender" => raid.gender.as_ref().map(|g| g.get_id()),
-            "sponsor" => raid.sponsor_od,
+            "sponsor" => raid.sponsor_id,
             "evo" => raid.evolution,
             "ar" => raid.ar_scan_eligible,
         })
