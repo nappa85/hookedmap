@@ -28,7 +28,7 @@ async fn parse(bytes: Vec<u8>) -> Result<(), ()> {
     engine::submit(
         configs.into_iter()
             .map(|v| {
-                debug!("incoming webhook: {:?}", v);
+                debug!("incoming webhook: {}", v);
                 // this is a bit of a waste of memory, but there is no other way around
                 serde_json::from_value(v.clone())
                     .map_err(|e| error!("deserialize error: {}\n{}", e, v))
