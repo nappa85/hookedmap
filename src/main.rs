@@ -14,7 +14,7 @@ use tokio::spawn;
 
 use serde_json::value::Value;
 
-use tracing::{info, error};
+use tracing::{debug, info, error};
 
 mod db;
 mod config;
@@ -27,11 +27,12 @@ async fn parse(bytes: Vec<u8>) -> Result<(), ()> {
 
     engine::submit(
         configs.into_iter()
-            .map(|v|
+            .map(|v| {
+                debug!("incoming webhook: {:?}", v);
                 // this is a bit of a waste of memory, but there is no other way around
                 serde_json::from_value(v.clone())
                     .map_err(|e| error!("deserialize error: {}\n{}", e, v))
-            )
+            })
             .filter(Result::is_ok)
             .map(Result::unwrap)
     ).await;
