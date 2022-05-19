@@ -188,7 +188,7 @@ async fn update_quest(quest: &Quest) -> Result<(), ()> {
             "lon" => quest.longitude,
             "name" => quest.pokestop_name.as_str(),
             "url" => quest.pokestop_url.as_str(),
-            "type" => quest.quest_type,
+            "type" => quest._type,
             "target" => quest.target,
             "template" => quest.template.as_str(),
             "rewards" => serde_json::to_string(&quest.rewards).ok(),
