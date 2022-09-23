@@ -1,4 +1,3 @@
-
 use rocketmap_entities::{Gym, GymDetails, Pokemon, Pokestop, Quest, Raid};
 
 use mysql_async::{params, prelude::Queryable};
@@ -31,8 +30,8 @@ async fn update_gym(gym: &Gym) -> Result<(), ()> {
             "INSERT INTO gym (id, updated, first_seen_timestamp, lat, lon, name, url, last_modified_timestamp, enabled, team_id, guarding_pokemon_id, availble_slots, raid_end_timestamp, ex_raid_eligible, in_battle, sponsor_id, ar_scan_eligible)
             VALUES (:id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), :lat, :lon, :name, :url, :timestamp, :enabled, :team_id, :guard_id, :slots, :raid_end, :ex, :in_battle, :sponsor, :ar)
             ON DUPLICATE KEY UPDATE updated = UNIX_TIMESTAMP(), lat = :lat, lon = :lon,{}{}{}{} team_id = :team_id,{} availble_slots = :slots,{}{} in_battle = :in_battle, sponsor_id = :sponsor, ar_scan_eligible = :ar;",
-            (!gym.gym_name.eq_ignore_ascii_case("unknown")).then(|| " name = :name,").unwrap_or_default(),
-            (!gym.url.is_empty()).then(|| " url = :url,").unwrap_or_default(),
+            (!gym.gym_name.eq_ignore_ascii_case("unknown")).then_some(" name = :name,").unwrap_or_default(),
+            (!gym.url.is_empty()).then_some(" url = :url,").unwrap_or_default(),
             gym.last_modified.map(|_| " last_modified_timestamp = :timestamp,").unwrap_or_default(),
             gym.enabled.map(|_| " enabled = :enabled,").unwrap_or_default(),
             gym.guard_pokemon_id.map(|_| " guarding_pokemon_id = :guard_id,").unwrap_or_default(),
@@ -68,8 +67,8 @@ async fn update_gym_details(gym: &GymDetails) -> Result<(), ()> {
             "INSERT INTO gym (id, updated, first_seen_timestamp, lat, lon, name, url, team_id, availble_slots, ex_raid_eligible, in_battle, sponsor_id, ar_scan_eligible)
             VALUES (:id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), :lat, :lon, :name, :url, :team_id, :slots, :ex, :in_battle, :sponsor, :ar)
             ON DUPLICATE KEY UPDATE updated = UNIX_TIMESTAMP(), lat = :lat, lon = :lon,{}{} team_id = :team_id, availble_slots = :slots, ex_raid_eligible = :ex, in_battle = :in_battle, sponsor_id = :sponsor, ar_scan_eligible = :ar;",
-            (!gym.name.eq_ignore_ascii_case("unknown")).then(|| " name = :name,").unwrap_or_default(),
-            (!gym.url.is_empty()).then(|| " url = :url,").unwrap_or_default(),
+            (!gym.name.eq_ignore_ascii_case("unknown")).then_some(" name = :name,").unwrap_or_default(),
+            (!gym.url.is_empty()).then_some(" url = :url,").unwrap_or_default(),
         ),
         params! {
             "id" => gym.id.as_str(),
@@ -179,8 +178,8 @@ async fn update_quest(quest: &Quest) -> Result<(), ()> {
             "INSERT INTO pokestop (id, first_seen_timestamp, lat, lon, name, url, quest_type, quest_target, quest_template, quest_rewards, updated, quest_conditions, quest_timestamp, ar_scan_eligible)
             VALUES (:id, UNIX_TIMESTAMP(), :lat, :lon, :name, :url, :type, :target, :template, :rewards, :updated, :conditions, UNIX_TIMESTAMP(), :ar)
             ON DUPLICATE KEY UPDATE lat = :lat, lon = :lon,{}{} quest_type = :type, quest_target = :target, quest_template = :template, quest_rewards = :rewards, updated = :updated, quest_conditions = :conditions, quest_timestamp = UNIX_TIMESTAMP(), ar_scan_eligible = :ar;",
-            (!quest.pokestop_name.eq_ignore_ascii_case("unknown")).then(|| " name = :name,").unwrap_or_default(),
-            (!quest.pokestop_url.is_empty()).then(|| " url = :url,").unwrap_or_default(),
+            (!quest.pokestop_name.eq_ignore_ascii_case("unknown")).then_some(" name = :name,").unwrap_or_default(),
+            (!quest.pokestop_url.is_empty()).then_some(" url = :url,").unwrap_or_default(),
         ),
         params! {
             "id" => quest.pokestop_id.as_str(),
@@ -208,8 +207,8 @@ async fn update_raid(raid: &Raid) -> Result<(), ()> {
             "INSERT INTO gym (id, updated, first_seen_timestamp, lat, lon, name, url, team_id, raid_spawn_timestamp, raid_battle_timestamp, raid_end_timestamp, raid_level, raid_pokemon_id, raid_pokemon_cp, raid_pokemon_move_1, raid_pokemon_move_2, ex_raid_eligible, raid_pokemon_form, raid_is_exclusive, raid_pokemon_gender, sponsor_id, raid_pokemon_evolution, ar_scan_eligible)
             VALUES (:id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), :lat, :lon, :name, :url, :team, :spawn, :start, :end, :level, :pokemon, :cp, :move1, :move2, :ex, :form, :is_ex, :gender, :sponsor, :evo, :ar)
             ON DUPLICATE KEY UPDATE updated = UNIX_TIMESTAMP(), lat = :lat, lon = :lon,{}{} team_id = :team, raid_spawn_timestamp = :spawn, raid_battle_timestamp = :start, raid_end_timestamp = :end, raid_level = :level, raid_pokemon_id = :pokemon, raid_pokemon_cp = :cp, raid_pokemon_move_1 = :move1, raid_pokemon_move_2 = :move2, ex_raid_eligible = :ex, raid_pokemon_form = :form, raid_is_exclusive = :is_ex, raid_pokemon_gender = :gender, sponsor_id = :sponsor, raid_pokemon_evolution = :evo, ar_scan_eligible = :ar;",
-            (!raid.gym_name.eq_ignore_ascii_case("unknown")).then(|| " name = :name,").unwrap_or_default(),
-            (!raid.gym_url.is_empty()).then(|| " url = :url,").unwrap_or_default(),
+            (!raid.gym_name.eq_ignore_ascii_case("unknown")).then_some(" name = :name,").unwrap_or_default(),
+            (!raid.gym_url.is_empty()).then_some(" url = :url,").unwrap_or_default(),
         ),
         params! {
             "id" => raid.gym_id.as_str(),
@@ -239,18 +238,32 @@ async fn update_raid(raid: &Raid) -> Result<(), ()> {
     Ok(())
 }
 
-pub async fn submit<T: Iterator<Item=Request>>(iter: T) {
+pub async fn submit<T: Iterator<Item = Request>>(iter: T) {
     for request in iter {
         tokio::spawn(async move {
             match request {
-                Request::Gym(g) => { update_gym(&g).await.ok(); },
-                Request::GymDetails(g) => { update_gym_details(&g).await.ok(); },
-                Request::Invasion(i) => { update_pokestop(&i).await.ok(); },
-                Request::Pokestop(p) => { update_pokestop(&p).await.ok(); },
-                Request::Pokemon(p) => { update_pokemon(&p).await.ok(); },
-                Request::Quest(q) => { update_quest(&q).await.ok(); },
-                Request::Raid(r) => { update_raid(&r).await.ok(); },
-                _ => {},
+                Request::Gym(g) => {
+                    update_gym(&g).await.ok();
+                }
+                Request::GymDetails(g) => {
+                    update_gym_details(&g).await.ok();
+                }
+                Request::Invasion(i) => {
+                    update_pokestop(&i).await.ok();
+                }
+                Request::Pokestop(p) => {
+                    update_pokestop(&p).await.ok();
+                }
+                Request::Pokemon(p) => {
+                    update_pokemon(&p).await.ok();
+                }
+                Request::Quest(q) => {
+                    update_quest(&q).await.ok();
+                }
+                Request::Raid(r) => {
+                    update_raid(&r).await.ok();
+                }
+                _ => {}
             }
         });
     }
