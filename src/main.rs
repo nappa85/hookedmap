@@ -19,12 +19,12 @@ use tracing::{debug, error, info};
 mod config;
 mod db;
 mod engine;
+mod lists;
 
 async fn parse(bytes: Vec<u8>) -> Result<(), ()> {
     let body = String::from_utf8(bytes).map_err(|e| error!("encoding error: {}", e))?;
     // split the serialization in two passes, this way a single error doesn't break the entire block
-    let configs: Vec<Value> =
-        serde_json::from_str(&body).map_err(|e| error!("deserialize error: {}\n{}", e, body))?;
+    let configs: Vec<Value> = serde_json::from_str(&body).map_err(|e| error!("deserialize error: {}\n{}", e, body))?;
 
     engine::submit(
         configs
@@ -32,8 +32,7 @@ async fn parse(bytes: Vec<u8>) -> Result<(), ()> {
             .map(|v| {
                 debug!("incoming webhook: {}", v);
                 // this is a bit of a waste of memory, but there is no other way around
-                serde_json::from_value(v.clone())
-                    .map_err(|e| error!("deserialize error: {}\n{}", e, v))
+                serde_json::from_value(v.clone()).map_err(|e| error!("deserialize error: {}\n{}", e, v))
             })
             .filter(Result::is_ok)
             .map(Result::unwrap),
@@ -46,15 +45,10 @@ async fn service(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
     if config::CONFIG.service.safeword.is_none()
         || Some(req.uri().path().trim_matches('/')) == config::CONFIG.service.safeword.as_deref()
     {
-        let bytes = req
-            .into_body()
-            .map_ok(|c| c.to_vec())
-            .try_concat()
-            .await
-            .map_err(|e| {
-                error!("concat error: {}", e);
-                e
-            })?;
+        let bytes = req.into_body().map_ok(|c| c.to_vec()).try_concat().await.map_err(|e| {
+            error!("concat error: {}", e);
+            e
+        })?;
 
         //spawn an independent future to parse the stream
         spawn(async move {
@@ -71,14 +65,12 @@ async fn service(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
 async fn main() -> Result<(), ()> {
     tracing_subscriber::fmt::init();
 
+    lists::init().await;
+
     //retrieve address and port, defaulting if not configured
     let addr = format!(
         "{}:{}",
-        config::CONFIG
-            .service
-            .address
-            .as_deref()
-            .unwrap_or("0.0.0.0"),
+        config::CONFIG.service.address.as_deref().unwrap_or("0.0.0.0"),
         config::CONFIG.service.port.unwrap_or(80)
     )
     .parse()
