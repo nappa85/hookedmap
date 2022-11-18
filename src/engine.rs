@@ -6,7 +6,7 @@ use rocketmap_entities::{Gym, GymDetails, Pokemon, Pokestop, Quest, Raid};
 
 use mysql_async::{params, prelude::Queryable};
 
-use chrono::Utc;
+use chrono::{DateTime, TimeZone, Utc};
 
 use tracing::error;
 
@@ -172,7 +172,12 @@ async fn update_pokemon(pokemon: &Pokemon) -> Result<(), ()> {
         })
         .await
         .map_err(|e| error!("Mysql update pokemon error: {}\n{:?}", e, pokemon))?;
-    update_city_stats((pokemon.latitude, pokemon.longitude).into(), pokemon.pokemon_id, pokemon.encounter_id.clone());
+    update_city_stats(
+        (pokemon.latitude, pokemon.longitude).into(),
+        pokemon.pokemon_id,
+        pokemon.encounter_id.clone(),
+        Utc.timestamp_opt(pokemon.disappear_time, 0).single().ok_or(())?,
+    );
     Ok(())
 }
 
@@ -274,7 +279,7 @@ pub async fn submit<T: Iterator<Item = Request>>(iter: T) {
     }
 }
 
-fn update_city_stats(point: Point<f64>, pokemon_id: u16, encounter_id: String) {
+fn update_city_stats(point: Point<f64>, pokemon_id: u16, encounter_id: String, despawn: DateTime<Utc>) {
     tokio::spawn(async move {
         let city = {
             let lock = CITIES.load();
@@ -284,7 +289,7 @@ fn update_city_stats(point: Point<f64>, pokemon_id: u16, encounter_id: String) {
         if let Some(city_id) = city {
             if let Ok(mut conn) = get_conn().await {
                 conn.exec_drop("REPLACE INTO city_stats_today (day, city_id, encounter_id, pokemon_id) VALUES (:day, :park_id, :encounter_id, :pokemon_id)", params! {
-                        "day" => Utc::now().date_naive(),
+                        "day" => despawn.date_naive(),
                         "city_id" => city_id,
                         "encounter_id" => encounter_id.as_str(),
                         "pokemon_id" => pokemon_id,
