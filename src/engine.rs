@@ -288,7 +288,7 @@ fn update_city_stats(point: Point<f64>, pokemon_id: u16, encounter_id: String, d
 
         if let Some(city_id) = city {
             if let Ok(mut conn) = get_conn().await {
-                conn.exec_drop("REPLACE INTO city_stats_today (day, city_id, encounter_id, pokemon_id) VALUES (:day, :park_id, :encounter_id, :pokemon_id)", params! {
+                conn.exec_drop("REPLACE INTO city_stats_today (day, city_id, encounter_id, pokemon_id) VALUES (:day, :city_id, :encounter_id, :pokemon_id)", params! {
                         "day" => despawn.date_naive(),
                         "city_id" => city_id,
                         "encounter_id" => encounter_id.as_str(),
