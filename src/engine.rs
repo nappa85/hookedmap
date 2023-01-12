@@ -117,7 +117,7 @@ async fn update_pokestop(pokestop: &Pokestop) -> Result<(), ()> {
             "incident_exp" => pokestop.incident_expire_timestamp,
             "updated" => pokestop.updated,
             "lure_id" => pokestop.lure_id,
-            "grunt_type" => pokestop.grunt_type.or_else(|| (pokestop.display_type == Some(8)).then_some(352)), // kecleon
+            "grunt_type" => pokestop.get_grunt_type(),
             "ar" => pokestop.ar_scan_eligible,
         })
         .await
