@@ -26,17 +26,11 @@ async fn parse(bytes: Vec<u8>) -> Result<(), ()> {
     // split the serialization in two passes, this way a single error doesn't break the entire block
     let configs: Vec<Value> = serde_json::from_str(&body).map_err(|e| error!("deserialize error: {}\n{}", e, body))?;
 
-    engine::submit(
-        configs
-            .into_iter()
-            .map(|v| {
-                debug!("incoming webhook: {}", v);
-                // this is a bit of a waste of memory, but there is no other way around
-                serde_json::from_value(v.clone()).map_err(|e| error!("deserialize error: {}\n{}", e, v))
-            })
-            .filter(Result::is_ok)
-            .map(Result::unwrap),
-    )
+    engine::submit(configs.into_iter().flat_map(|v| {
+        debug!("incoming webhook: {}", v);
+        // this is a bit of a waste of memory, but there is no other way around
+        serde_json::from_value(v.clone()).map_err(|e| error!("deserialize error: {}\n{}", e, v))
+    }))
     .await;
     Ok(())
 }
