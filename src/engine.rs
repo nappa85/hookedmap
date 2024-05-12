@@ -185,11 +185,12 @@ async fn update_quest(quest: &Quest) -> Result<(), ()> {
     let mut conn = get_conn().await?;
     conn.exec_drop(
         format!(
-            "INSERT INTO pokestop (id, first_seen_timestamp, lat, lon, name, url, quest_type, quest_target, quest_template, quest_rewards, updated, quest_conditions, quest_timestamp, ar_scan_eligible)
+            "INSERT INTO pokestop (id, first_seen_timestamp, lat, lon, name, url, {alternative}quest_type, {alternative}quest_target, {alternative}quest_template, {alternative}quest_rewards, updated, {alternative}quest_conditions, {alternative}quest_timestamp, ar_scan_eligible)
             VALUES (:id, UNIX_TIMESTAMP(), :lat, :lon, :name, :url, :type, :target, :template, :rewards, :updated, :conditions, UNIX_TIMESTAMP(), :ar)
-            ON DUPLICATE KEY UPDATE lat = :lat, lon = :lon,{}{} quest_type = :type, quest_target = :target, quest_template = :template, quest_rewards = :rewards, updated = :updated, quest_conditions = :conditions, quest_timestamp = UNIX_TIMESTAMP(), ar_scan_eligible = :ar;",
+            ON DUPLICATE KEY UPDATE lat = :lat, lon = :lon,{}{} {alternative}quest_type = :type, {alternative}quest_target = :target, {alternative}quest_template = :template, {alternative}quest_rewards = :rewards, updated = :updated, {alternative}quest_conditions = :conditions, {alternative}quest_timestamp = UNIX_TIMESTAMP(), ar_scan_eligible = :ar;",
             (!quest.pokestop_name.eq_ignore_ascii_case("unknown")).then_some(" name = :name,").unwrap_or_default(),
             (!quest.pokestop_url.is_empty()).then_some(" url = :url,").unwrap_or_default(),
+            alternative = if quest.with_ar.unwrap_or_default() { "" } else { "alternative_" },
         ),
         params! {
             "id" => quest.pokestop_id.as_str(),
