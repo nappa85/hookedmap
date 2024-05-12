@@ -68,11 +68,12 @@ async fn update_gym_details(gym: &GymDetails) -> Result<(), ()> {
     let mut conn = get_conn().await?;
     conn.exec_drop(
         format!(
-            "INSERT INTO gym (id, updated, first_seen_timestamp, lat, lon, name, url, team_id, availble_slots, ex_raid_eligible, in_battle, sponsor_id, ar_scan_eligible)
+            "INSERT INTO gym (id, updated, first_seen_timestamp, lat, lon, name, url, team_id, guarding_pokemon_id, availble_slots, ex_raid_eligible, in_battle, sponsor_id, ar_scan_eligible)
             VALUES (:id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), :lat, :lon, :name, :url, :team_id, :slots, :ex, :in_battle, :sponsor, :ar)
-            ON DUPLICATE KEY UPDATE updated = UNIX_TIMESTAMP(), lat = :lat, lon = :lon,{}{} team_id = :team_id, availble_slots = :slots, ex_raid_eligible = :ex, in_battle = :in_battle, sponsor_id = :sponsor, ar_scan_eligible = :ar;",
+            ON DUPLICATE KEY UPDATE updated = UNIX_TIMESTAMP(), lat = :lat, lon = :lon,{}{} team_id = :team_id,{} availble_slots = :slots, ex_raid_eligible = :ex, in_battle = :in_battle, sponsor_id = :sponsor, ar_scan_eligible = :ar;",
             (!gym.name.eq_ignore_ascii_case("unknown")).then_some(" name = :name,").unwrap_or_default(),
             (!gym.url.is_empty()).then_some(" url = :url,").unwrap_or_default(),
+            gym.guard_pokemon_id.map(|_| " guarding_pokemon_id = :guard_id,").unwrap_or_default(),
         ),
         params! {
             "id" => gym.id.as_str(),
@@ -81,6 +82,7 @@ async fn update_gym_details(gym: &GymDetails) -> Result<(), ()> {
             "name" => gym.name.as_str(),
             "url" => gym.url.as_str(),
             "team_id" => gym.team.get_id(),
+            "guard_id" => gym.guard_pokemon_id,
             "slots" => gym.slots_available,
             "ex" => gym.ex_raid_eligible,
             "in_battle" => gym.in_battle,
