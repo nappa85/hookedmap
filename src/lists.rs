@@ -21,6 +21,7 @@ use crate::db::get_conn;
 
 pub static CITIES: Lazy<ArcSwap<HashMap<u16, City>>> = Lazy::new(Default::default);
 
+#[allow(dead_code)]
 pub struct City {
     pub id: u16,
     pub name: String,

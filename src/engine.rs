@@ -69,7 +69,7 @@ async fn update_gym_details(gym: &GymDetails) -> Result<(), ()> {
     conn.exec_drop(
         format!(
             "INSERT INTO gym (id, updated, first_seen_timestamp, lat, lon, name, url, team_id, guarding_pokemon_id, availble_slots, ex_raid_eligible, in_battle, sponsor_id, ar_scan_eligible)
-            VALUES (:id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), :lat, :lon, :name, :url, :team_id, :slots, :ex, :in_battle, :sponsor, :ar)
+            VALUES (:id, UNIX_TIMESTAMP(), UNIX_TIMESTAMP(), :lat, :lon, :name, :url, :team_id, :guard_id, :slots, :ex, :in_battle, :sponsor, :ar)
             ON DUPLICATE KEY UPDATE updated = UNIX_TIMESTAMP(), lat = :lat, lon = :lon,{}{} team_id = :team_id,{} availble_slots = :slots, ex_raid_eligible = :ex, in_battle = :in_battle, sponsor_id = :sponsor, ar_scan_eligible = :ar;",
             (!gym.name.eq_ignore_ascii_case("unknown")).then_some(" name = :name,").unwrap_or_default(),
             (!gym.url.is_empty()).then_some(" url = :url,").unwrap_or_default(),
@@ -174,12 +174,16 @@ async fn update_pokemon(pokemon: &Pokemon) -> Result<(), ()> {
         })
         .await
         .map_err(|e| error!("Mysql update pokemon error: {}\n{:?}", e, pokemon))?;
+
+    update_pokemon_stats(pokemon.pokemon_id);
+
     update_city_stats(
         (pokemon.latitude, pokemon.longitude).into(),
         pokemon.pokemon_id,
         pokemon.encounter_id.clone(),
         Utc.timestamp_opt(pokemon.disappear_time, 0).single().ok_or(())?,
     );
+
     Ok(())
 }
 
@@ -280,6 +284,17 @@ pub async fn submit<T: Iterator<Item = Request>>(iter: T) {
             }
         });
     }
+}
+
+fn update_pokemon_stats(pokemon_id: u16) {
+    tokio::spawn(async move {
+        if let Ok(mut conn) = get_conn().await {
+            conn.exec_drop("INSERT INTO pokemon_stats (`date`, `pokemon_id`, `count`) VALUES (CURDATE(), :pokemon_id, 1) ON DUPLICATE KEY UPDATE `count` = `count` + 1", params! {
+                    "pokemon_id" => pokemon_id,
+                }).await
+                .map_err(|e| error!("MySQL query error: insert pokemon stat\n{}", e)).ok();
+        }
+    });
 }
 
 fn update_city_stats(point: Point<f64>, pokemon_id: u16, encounter_id: String, despawn: DateTime<Utc>) {
